@@ -5,28 +5,19 @@
 //  Created by François Jean Raymond CLÉMENT on 21/11/2025.
 //
 
-import SwiftUI
 import SwiftData
+import SwiftUI
 
 @main
 struct SwiftMidiCentralApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    var manager: CommunicationManager =
+        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        ? CommunicationManager() : MidiManager()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            TopView(manager: manager)
+//                .accessibilityIdentifier(ViewTags.Views.top)
         }
-        .modelContainer(sharedModelContainer)
     }
 }

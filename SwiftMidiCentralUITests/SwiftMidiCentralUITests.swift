@@ -7,6 +7,8 @@
 
 import XCTest
 
+//@testable import SwiftMidiCentral
+
 final class SwiftMidiCentralUITests: XCTestCase {
 
     override func setUpWithError() throws {
@@ -26,9 +28,21 @@ final class SwiftMidiCentralUITests: XCTestCase {
     func testExample() throws {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing")
         app.launch()
 
+        let existsPredicate = NSPredicate(format: "exists == true")
         // Use XCTAssert and related functions to verify your tests produce the correct results.
+//        let _ = getAppViewFromTag(ViewTags.Buttons.scan)
+        let scanButton = getAppViewFromTag("scanButton")
+        expectation(for: existsPredicate, evaluatedWith: scanButton, handler: nil)
+        waitForExpectations(timeout: 5) { error in
+            XCTAssertNil(error)
+        }
+        XCTAssert(scanButton.exists)
+        scanButton.tap()
+//        app.pickerWheels.element.adjust(toPickerWheelValue: "Remote 3")
+//        XCTAssert(app.pickerWheels.element.label == "Remote 3")
     }
 
     @MainActor
