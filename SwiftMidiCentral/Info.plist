@@ -7,6 +7,7 @@
 		<string>bluetooth-central</string>
 		<string>processing</string>
 		<string>external-accessory</string>
+		<string>bluetooth-peripheral</string>
 	</array>
 </dict>
 </plist>

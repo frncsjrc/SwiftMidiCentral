@@ -454,6 +454,18 @@
         }
       }
     },
+    "local.unknownDeviceName" : {
+      "comment" : "Returned value when the MIDI manager cannot retrieve a device name for an unknown end point",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unknown device name for MIDI end point: %u"
+          }
+        }
+      }
+    },
     "local.unknownSourceName" : {
       "comment" : "Returned value when the local manager cannot retrieve a destination name for an unknown peripheral\nReturned value when the local manager cannot retrieve a source name for an unknown peripheral",
       "localizations" : {
@@ -565,6 +577,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Control change: canal %1$u, contrôleur %2$u, valeur %3$u"
+          }
+        }
+      }
+    },
+    "midi.messageInvalidStatus" : {
+      "comment" : "Text to display when an MIDI message with invalid status is received",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Invalid message status"
           }
         }
       }
@@ -941,19 +965,19 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bitte aktualisieren oder nach Geräten suchen."
+            "value" : "Bitte Geräten suchen, werben oder aktualisieren."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Please refresh or scan for devices."
+            "value" : "Please scan, advertise or refresh devices."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rechercher ou rafraîchir les périphériques"
+            "value" : "Rechercher, publier ou rafraîchir les périphériques"
           }
         }
       }
@@ -1027,13 +1051,37 @@
         }
       }
     },
+    "view.setupStartAdvertizing" : {
+      "comment" : "Text for the button in the setup view that starts scanning for MIDI devices",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Advertize"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publier"
+          }
+        }
+      }
+    },
     "view.setupStartScanning" : {
       "comment" : "Text for the button in the setup view that starts scanning for MIDI devices",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Scannen starten"
+            "value" : "Scan"
           }
         },
         "en" : {
@@ -1050,13 +1098,37 @@
         }
       }
     },
+    "view.setupStopAdvertizing" : {
+      "comment" : "Text for the button in the setup view that stops scanning for MIDI devices",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop werb."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stop ads"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop pub"
+          }
+        }
+      }
+    },
     "view.setupStopScanning" : {
       "comment" : "Text for the button in the setup view that stops scanning for MIDI devices",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Scannen stoppen"
+            "value" : "Stop scan"
           }
         },
         "en" : {
@@ -1068,7 +1140,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stopper"
+            "value" : "Stop rec"
           }
         }
       }

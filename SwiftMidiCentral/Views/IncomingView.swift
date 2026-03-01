@@ -9,6 +9,7 @@ import SwiftUI
 
 struct IncomingView: View {
     @State var manager: CommunicationManager
+
     var body: some View {
         VStack(alignment: .leading) {
             HStack {
@@ -19,11 +20,17 @@ struct IncomingView: View {
             .font(.headline)
             .padding(5)
             ScrollView {
-                ForEach(manager.lastMessages.indices, id: \.self) { index in
-                    Text(manager.lastMessages[index])
-                        .fontWidth(.compressed)
+                VStack(alignment: .leading) {
+                    ForEach(manager.lastMessages.indices, id: \.self) { index in
+                        if index < manager.lastMessages.count {
+                            Text(manager.lastMessages[index])
+                                .fontWidth(.compressed)
+                        } else {
+                            EmptyView()
+                        }
+                    }
+                    .accessibilityIdentifier("receivedMessages")
                 }
-                .accessibilityIdentifier("receivedMessages")
             }
         }
     }
@@ -33,6 +40,6 @@ struct IncomingView: View {
     let manager = CommunicationManager()
     manager.lastSource = "Test"
     manager.lastMessages = ["Test 1", "Test 2", "Test 3"]
-    
+
     return IncomingView(manager: manager)
 }

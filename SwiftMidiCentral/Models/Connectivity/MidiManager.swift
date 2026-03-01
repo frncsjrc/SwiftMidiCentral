@@ -10,6 +10,7 @@ import CoreMIDI
 import Foundation
 import OSLog
 
+@Observable
 class MidiManager: CommunicationManager {
     typealias NotificationDelegate = (MIDINotification) -> Void
 
@@ -23,129 +24,232 @@ class MidiManager: CommunicationManager {
 
     override init() {
         super.init()
+        self.reset()
         self.central = BluetoothCentral()
         self.central.communicationManager = self
+        self.peripheral = BluetoothPeripheral()
+        self.peripheral.communicationManager = self
         self.setup()
     }
 
+    override func reset() {
+        print("resetting")
+        MIDIRestart()
+
+        let deviceCount = MIDIGetNumberOfDevices()
+        let extDeviceCount = MIDIGetNumberOfExternalDevices()
+
+        print("Number of MIDI devices: \(deviceCount)")
+        print("Number of external MIDI devices: \(extDeviceCount)")
+
+        for i in 0..<deviceCount {
+            let device = MIDIGetDevice(i)
+
+            var name: Unmanaged<CFString>?
+            MIDIObjectGetStringProperty(device, kMIDIPropertyName, &name)
+            let deviceName: String? = name?.takeRetainedValue() as String?
+
+            print(
+                "\nFound MIDI device #\(i) named \"\(deviceName ?? "")\""
+            )
+
+            var driverOwner: Unmanaged<CFString>?
+            MIDIObjectGetStringProperty(
+                device,
+                kMIDIPropertyDriverOwner,
+                &driverOwner
+            )
+            let deviceDriverOwner: String? =
+                driverOwner?.takeRetainedValue() as String?
+
+            var offline: Unmanaged<CFString>?
+            MIDIObjectGetStringProperty(device, kMIDIPropertyOffline, &offline)
+            let deviceOffline: String? = offline?.takeRetainedValue() as String?
+
+            var protocolId: Unmanaged<CFString>?
+            MIDIObjectGetStringProperty(
+                device,
+                kMIDIPropertyProtocolID,
+                &protocolId
+            )
+            let deviceProtocol: String? =
+                protocolId?.takeRetainedValue() as String?
+
+            print(
+                "\tDriver Owner: \(deviceDriverOwner ?? "\"\""), Offline: \(deviceOffline ?? "\"\""), Protocol: \(deviceProtocol ?? "\"\"")"
+            )
+
+            if (deviceDriverOwner ?? "").range(
+                of: "bluetooth",
+                options: .caseInsensitive
+            ) != nil {
+                print("\tRemoving Bluetooth MIDI device")
+                MIDISetupRemoveDevice(device)
+            }
+        }
+    }
+
     override func refresh() {
+        print("refreshing")
+
+        let activateStatus = MIDIBluetoothDriverActivateAllConnections()
+        if activateStatus != noErr {
+            Logger.connectivity.error(
+                "Failed to activate all MIDI Bluetooth connections: \(activateStatus)"
+            )
+        }
+
         DispatchQueue.main.async {
-            let activateStatus = MIDIBluetoothDriverActivateAllConnections()
-            if activateStatus != noErr {
-                Logger.connectivity.error(
-                    "Failed to activate all MIDI Bluetooth connections: \(activateStatus)"
+            let deviceCount = MIDIGetNumberOfDevices()
+            let extDeviceCount = MIDIGetNumberOfExternalDevices()
+
+            print("Number of MIDI devices: \(deviceCount)")
+            print("Number of external MIDI devices: \(extDeviceCount)")
+
+            for i in 0..<deviceCount {
+                let device = MIDIGetDevice(i)
+
+                var name: Unmanaged<CFString>?
+                MIDIObjectGetStringProperty(device, kMIDIPropertyName, &name)
+                let deviceName: String? = name?.takeRetainedValue() as String?
+
+                print(
+                    "\nFound MIDI device #\(i) named \"\(deviceName ?? "")\""
                 )
-            }
 
-            // Get all sources
-            let sourceCount = MIDIGetNumberOfSources()
-            for i in 0..<sourceCount {
-                var source = MIDIGetSource(i)
-                var name: Unmanaged<CFString>?
-                MIDIObjectGetStringProperty(source, kMIDIPropertyName, &name)
-                if let sourceName = name?.takeRetainedValue() as String? {
-                    if let remoteIndex = self.remotes.firstIndex(where: {
-                        $0.name == sourceName
-                    }) {
-                        self.remotes[remoteIndex].source = source
-                        self.remotes[remoteIndex].state = .connected
-                        if self.remotes[remoteIndex].enableReception {
-                            MIDIPortConnectSource(
-                                self.inputPort,
-                                source,
-                                &source
-                            )
-                        }
-                    } else {
-                        self.remotes.append(
-                            RemoteDetails(
-                                name: sourceName,
-                                source: source,
-                                state: .connected
-                            )
-                        )
-                    }
-                }
-            }
-
-            // Get all destinations
-            let destCount = MIDIGetNumberOfDestinations()
-            for i in 0..<destCount {
-                let destination = MIDIGetDestination(i)
-                var name: Unmanaged<CFString>?
+                var driverOwner: Unmanaged<CFString>?
                 MIDIObjectGetStringProperty(
-                    destination,
-                    kMIDIPropertyName,
-                    &name
+                    device,
+                    kMIDIPropertyDriverOwner,
+                    &driverOwner
                 )
-                if let destinationName = name?.takeRetainedValue() as String? {
-                    if let remoteIndex = self.remotes.firstIndex(where: {
-                        $0.name == destinationName
-                    }) {
-                        self.remotes[remoteIndex].destination = destination
-                    } else {
-                        self.remotes.append(
-                            RemoteDetails(
-                                name: destinationName,
+                let deviceDriverOwner: String? =
+                    driverOwner?.takeRetainedValue() as String?
+
+                var offline: Unmanaged<CFString>?
+                MIDIObjectGetStringProperty(
+                    device,
+                    kMIDIPropertyOffline,
+                    &offline
+                )
+                let deviceOffline: String? =
+                    offline?.takeRetainedValue() as String?
+
+                var protocolId: Unmanaged<CFString>?
+                MIDIObjectGetStringProperty(
+                    device,
+                    kMIDIPropertyProtocolID,
+                    &protocolId
+                )
+                let deviceProtocol: String? =
+                    protocolId?.takeRetainedValue() as String?
+
+                print(
+                    "\tDriver Owner: \(deviceDriverOwner ?? "\"\""), Offline: \(deviceOffline ?? "\"\""), Protocol: \(deviceProtocol ?? "\"\"")"
+                )
+
+                let entities = MIDIDeviceGetNumberOfEntities(device)
+                print("  Device #\(i) has \(entities) entities")
+
+                for j in 0..<entities {
+                    let entity = MIDIDeviceGetEntity(device, j)
+                    MIDIObjectGetStringProperty(
+                        entity,
+                        kMIDIPropertyName,
+                        &name
+                    )
+                    var offline: Unmanaged<CFString>?
+                    MIDIObjectGetStringProperty(
+                        entity,
+                        kMIDIPropertyOffline,
+                        &offline
+                    )
+                    let offlineStatus: String? =
+                        offline?.takeRetainedValue() as String?
+                    print(
+                        "  Entity #\(j) is named \"\(name?.takeRetainedValue() as String? ?? "")\" with offline status \"\(offlineStatus ?? "")\""
+                    )
+
+                    let sources = MIDIEntityGetNumberOfSources(entity)
+                    print("    Entity #\(j) has \(sources) sources")
+                    let destinations = MIDIEntityGetNumberOfDestinations(entity)
+                    print("    Entity #\(j) has \(destinations) destinations")
+
+                    // For now only the first source and destination are being used
+                    if let deviceName {
+                        let source: MIDIEndpointRef? =
+                            sources > 0 ? MIDIEntityGetSource(entity, 0) : nil
+                        let destination: MIDIEndpointRef? =
+                            destinations > 0
+                            ? MIDIEntityGetDestination(entity, 0) : nil
+
+                        if let remote = self.remotes.first(where: {
+                            $0.name == deviceName
+                        }) {
+                            remote.interface = .midi(
+                                source: source,
                                 destination: destination
                             )
-                        )
-                    }
-                }
-            }
-
-            // Get all external devices
-            let externalDeviceCount = MIDIGetNumberOfExternalDevices()
-            for i in 0..<externalDeviceCount {
-                let externalDevice = MIDIGetExternalDevice(i)
-                var name: Unmanaged<CFString>?
-                MIDIObjectGetStringProperty(
-                    externalDevice,
-                    kMIDIPropertyName,
-                    &name
-                )
-
-                if let deviceName = name?.takeRetainedValue() as String? {
-                    if let remoteIndex = self.remotes.firstIndex(where: {
-                        $0.name == deviceName
-                    }) {
-                        self.remotes[remoteIndex].source = externalDevice
-                        self.remotes[remoteIndex].destination = externalDevice
-                    } else {
-                        self.remotes.append(
-                            RemoteDetails(
-                                name: deviceName,
-                                source: externalDevice,
-                                destination: externalDevice
+                        } else {
+                            self.remotes.append(
+                                RemoteDetails(
+                                    name: deviceName,
+                                    interface: .midi(
+                                        source: source,
+                                        destination: destination
+                                    )
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
         }
     }
 
-    override func connect(to peripheral: MIDIEndpointRef) {
-        if let remoteIndex = self.remotes.firstIndex(where: {
-            $0.source == peripheral
-        }) {
-            self.remotes[remoteIndex].enableReception = true
-            if self.remotes[remoteIndex].state != .connected {
-                try? central.connect(to: self.remotes[remoteIndex].id)
-            } else if var source = self.remotes[remoteIndex].source {
-                MIDIPortConnectSource(self.inputPort, source, &source)
+    override func connect(to id: UUID) throws {
+        guard let remote = remotes.first(where: { $0.id == id })
+        else {
+            Logger.connectivity.debug(
+                "Could not find remote with ID \(id) to connect to"
+            )
+            return
+        }
+
+        remote.enableReception = true
+
+        if case .bluetooth(let peripheral, _) = remote.interface,
+            peripheral != nil
+        {
+            try? self.central.connect(to: remote.id)
+        } else {
+            if case .midi(let source, _) = remote.interface, let source {
+                _ = withUnsafeMutablePointer(to: &remote.name) { pointer in
+                    MIDIPortConnectSource(self.inputPort, source, pointer)
+                }
             }
+            remote.state = .connected
         }
     }
 
-    override func disconnect(from peripheral: MIDIEndpointRef) {
-        if let remoteIndex = self.remotes.firstIndex(where: {
-            $0.source == peripheral
-        }) {
-            self.remotes[remoteIndex].enableReception = false
-            if let source = self.remotes[remoteIndex].source {
+    override func disconnect(from id: UUID) throws {
+        guard let remote = remotes.first(where: { $0.id == id })
+        else {
+            Logger.connectivity.debug(
+                "Could not find remote with ID \(id) to disconnect from"
+            )
+            return
+        }
+
+        remote.enableReception = false
+
+        if case .bluetooth = remote.interface {
+            try? self.central.disconnect(from: remote.id)
+        } else {
+            if case .midi(let source, _) = remote.interface, let source {
                 MIDIPortDisconnectSource(self.inputPort, source)
             }
+            remote.state = .disconnected
         }
     }
 
@@ -153,23 +257,55 @@ class MidiManager: CommunicationManager {
         guard !packets.isEmpty else { return }
 
         guard
-            let destination = self.selectedDestination,
-            let remote = self.remotes.first(where: { $0.id == destination })
+            let remote = self.remotes.first(where: {
+                $0.id == selectedDestination
+            })
         else {
             Logger.connectivity.error("\(Localized.localUnsetDestination)")
             return
         }
 
-        if let remoteDestination = remote.destination {
+        switch remote.interface {
+        case .midi(_, let destination):
             // Send through Core MIDI end point if available
-            send(packets: packets, to: remoteDestination)
-        } else {
-            // Else assume this destination is a pure Bluetooth connection
-            send(packets: packets, to: remote.id)
+            if let destination {
+                coreSend(packets: packets, to: destination)
+            } else {
+                Logger.connectivity.warning("")
+            }
+            break
+        case .bluetooth(let peripheral, let central):
+            if peripheral != nil {
+                // Send through Bluetooth peripheral
+                peripheralSend(packets: packets, to: remote)
+            } else if let destination = central {
+                // Send through Bluetooth central
+                centralSend(packets: packets, to: destination)
+            }
         }
     }
 
-    private func send(packets: [UInt32], to destination: MIDIEntityRef) {
+    private func deviceName(for endPoint: MIDIEndpointRef) -> String? {
+        var deviceName: String? = nil
+        var entity = MIDIClientRef()
+        var device = MIDIDeviceRef()
+        var name: Unmanaged<CFString>?
+        var status = MIDIEndpointGetEntity(endPoint, &entity)
+
+        if status == noErr {
+            status = MIDIEntityGetDevice(entity, &device)
+        }
+
+        if status == noErr {
+            MIDIObjectGetStringProperty(device, kMIDIPropertyName, &name)
+            deviceName = name?.takeRetainedValue() as String?
+        }
+
+        return deviceName
+    }
+
+    private func coreSend(packets: [UInt32], to destination: MIDIEntityRef) {
+        print("Sending data through core MIDI")
         var eventList = MIDIEventList()
         var currentPacket = MIDIEventListInit(&eventList, ._1_0)
         let listSize = (MemoryLayout.size(ofValue: eventList.packet) - 12) / 4
@@ -193,6 +329,7 @@ class MidiManager: CommunicationManager {
             stamp += stampDelay
         }
 
+        print("... sending data \(eventList)")
         let midiStatus = MIDISendEventList(
             self.outputPort,
             destination,
@@ -205,40 +342,18 @@ class MidiManager: CommunicationManager {
         }
     }
 
-    private func send(packets: [UInt32], to destination: UUID) {
-        guard
-            let peripheral = remotes.first(where: { $0.id == destination })?
-                .peripheral
-        else {
+    private func peripheralSend(packets: [UInt32], to remote: RemoteDetails) {
+        print("Sending MIDI data through CBPeripheral")
+
+        guard case .bluetooth(let destination, _) = remote.interface else {
             Logger.connectivity.error(
-                "Remote with ID \(destination) has no attached Bluetooth peripheral"
+                "No Bluetooth peripheral found to send data to"
             )
             return
         }
 
-        guard
-            let service = peripheral.services?.first(where: {
-                $0.uuid == Constants.midiServiceUUID
-            })
-        else {
-            Logger.connectivity.error(
-                "No MIDI service found on peripheral \(peripheral.debugDescription)"
-            )
-            return
-        }
-
-        guard
-            let cheracteristic = service.characteristics?.first(where: {
-                $0.uuid == Constants.midiCharacteristicUUID
-            })
-        else {
-            Logger.connectivity.error(
-                "No MIDI data characteristic found on peripheral \(peripheral.debugDescription)"
-            )
-            return
-        }
-
-        let maxSize = peripheral.maximumWriteValueLength(for: .withoutResponse)
+        let maxSize =
+            destination?.maximumWriteValueLength(for: .withoutResponse) ?? 256
 
         let elapsedTime = (clock_gettime_nsec_np(CLOCK_MONOTONIC) - startupTime)
         let encodedPackets = MidiMessage.encode(
@@ -247,12 +362,24 @@ class MidiManager: CommunicationManager {
             elapsedTime: elapsedTime
         )
 
+        print("... sending data \(encodedPackets)")
+        central.send(encodedPackets, to: remote)
+    }
+
+    private func centralSend(packets: [UInt32], to destination: CBCentral) {
+        print("Sending MIDI data through CBCentral")
+        let maxSize = destination.maximumUpdateValueLength
+
+        let elapsedTime = (clock_gettime_nsec_np(CLOCK_MONOTONIC) - startupTime)
+        let encodedPackets = MidiMessage.encode(
+            packets,
+            maxSize: maxSize,
+            elapsedTime: elapsedTime
+        )
+
+        print("... sending data \(encodedPackets)")
         encodedPackets.forEach {
-            peripheral.writeValue(
-                $0,
-                for: cheracteristic,
-                type: .withoutResponse
-            )
+            peripheral.send($0, to: destination.identifier)
         }
     }
 
@@ -273,15 +400,46 @@ class MidiManager: CommunicationManager {
                 self.refresh()
 
             case .msgObjectAdded:
-                Logger.connectivity.debug("➕ MIDI Object Added")
+                let rawPtr = UnsafeRawPointer(notificationPtr)
+                let message = rawPtr.assumingMemoryBound(
+                    to: MIDIObjectAddRemoveNotification.self
+                ).pointee
+                Logger.connectivity.debug(
+                    "➕ MIDI \(message.childType.rawValue) added: \(message.child)"
+                )
                 self.refresh()
 
             case .msgObjectRemoved:
-                Logger.connectivity.debug("➖ MIDI Object Removed")
+                let rawPtr = UnsafeRawPointer(notificationPtr)
+                let message = rawPtr.assumingMemoryBound(
+                    to: MIDIObjectAddRemoveNotification.self
+                ).pointee
+                Logger.connectivity.debug(
+                    "➖ MIDI \(message.childType.rawValue) removed: \(message.child)"
+                )
                 self.refresh()
 
             case .msgPropertyChanged:
-                Logger.connectivity.debug("🔧 MIDI Property Changed")
+                let rawPtr = UnsafeRawPointer(notificationPtr)
+                let message = rawPtr.assumingMemoryBound(
+                    to: MIDIObjectPropertyChangeNotification.self
+                ).pointee
+                Logger.connectivity.debug(
+                    "🔧 MIDI \(message.object) property \(message.propertyName.takeUnretainedValue()) changed."
+                )
+            case .msgThruConnectionsChanged, .msgSerialPortOwnerChanged:
+                Logger.connectivity.debug(
+                    "⚠️ MIDI Thru connection was created or destroyed"
+                )
+
+            case .msgIOError:
+                let rawPtr = UnsafeRawPointer(notificationPtr)
+                let message = rawPtr.assumingMemoryBound(
+                    to: MIDIIOErrorNotification.self
+                ).pointee
+                Logger.connectivity.debug(
+                    "🚫 MIDI I/O error \(message.errorCode) occurred"
+                )
 
             default:
                 Logger.connectivity.debug("⁉️ Untracked MIDI Notification")
@@ -308,36 +466,13 @@ class MidiManager: CommunicationManager {
             clientRef,
             "SwiftMidiDemo Input" as CFString,
             ._1_0,
-            &inputPortRef
-        ) { eventList, unsafeRawPointer in
-            let source: MIDIEndpointRef? = unsafeRawPointer?.load(
-                as: MIDIEndpointRef.self
-            )
-            self.processEventList(eventList, source)
-        }
+            &inputPortRef,
+            processEventList
+        )
 
         if status == noErr {
+            self.inputPort = inputPortRef
             Logger.connectivity.debug("✅ MIDI Input Port created successfully")
-
-            // Connect to all available MIDI sources
-            let sourceCount = MIDIGetNumberOfSources()
-            for i in 0..<sourceCount {
-                let source = MIDIGetSource(i)
-                status = MIDIPortConnectSource(inputPortRef, source, nil)
-                if status == noErr {
-                    var name: Unmanaged<CFString>?
-                    MIDIObjectGetStringProperty(
-                        source,
-                        kMIDIPropertyName,
-                        &name
-                    )
-                    let sourceName =
-                        name?.takeRetainedValue() as String? ?? "Unknown"
-                    Logger.connectivity.debug(
-                        "✅ Connected to MIDI source: \(sourceName)"
-                    )
-                }
-            }
         } else {
             Logger.connectivity.warning(
                 "❌ Failed to create MIDI input port: \(status)"
@@ -353,23 +488,8 @@ class MidiManager: CommunicationManager {
         )
 
         if status == noErr {
+            self.outputPort = outputPortRef
             Logger.connectivity.debug("✅ MIDI Output Port created successfully")
-
-            // Find first available destination
-            let destCount = MIDIGetNumberOfDestinations()
-            if destCount > 0 {
-                self.outputPort = MIDIGetDestination(0)
-                var name: Unmanaged<CFString>?
-                MIDIObjectGetStringProperty(
-                    self.outputPort!,
-                    kMIDIPropertyName,
-                    &name
-                )
-                let destName = name?.takeRetainedValue() as String? ?? "Unknown"
-                Logger.connectivity.debug(
-                    "✅ Output endpoint set to: \(destName)"
-                )
-            }
         } else {
             Logger.connectivity.warning(
                 "❌ Failed to create MIDI output port: \(status)"
@@ -382,54 +502,54 @@ class MidiManager: CommunicationManager {
 
     private func processEventList(
         _ eventList: UnsafePointer<MIDIEventList>,
-        _ ref: MIDIEndpointRef?
+        _ unsafeRawPointer: UnsafeMutableRawPointer?
     ) {
-        let visitorContext = EventListVisitorContext(ref)
-        let pointerToContext = Unmanaged.passUnretained(visitorContext)
-            .toOpaque()
+        let source: String =
+            unsafeRawPointer?.load(as: String.self)
+            ?? Localized.remoteUnknownDevice
 
-        MIDIEventListForEachEvent(
-            eventList,
-            { unsafePointerToContext, stamp, message in
-                if message.type != .channelVoice1 { return }
+        if let remote = self.remotes.first(where: { $0.name == source }),
+            remote.enableReception
+        {
+            print("Processing event list received from ", source)
+            self.lastSource = source
 
-                guard let unsafePointerToContext else { return }
+            let visitorContext = EventListVisitorContext()
 
-                let visiteeContext = Unmanaged<EventListVisitorContext>
-                    .fromOpaque(
-                        unsafePointerToContext
-                    ).takeUnretainedValue()
+            let pointerToContext = Unmanaged.passUnretained(visitorContext)
+                .toOpaque()
 
-                visiteeContext.messages.append(message)
-            },
-            pointerToContext
-        )
+            MIDIEventListForEachEvent(
+                eventList,
+                { unsafePointerToContext, stamp, message in
+                    if message.type != .channelVoice1 { return }
 
-        self.lastSource =
-            if let source = remotes.first(where: {
-                $0.source == visitorContext.ref
-            }) {
-                source.description
-            } else {
-                Localized.remoteUnknownDevice
+                    guard let unsafePointerToContext else { return }
+
+                    let visiteeContext = Unmanaged<EventListVisitorContext>
+                        .fromOpaque(
+                            unsafePointerToContext
+                        ).takeUnretainedValue()
+
+                    visiteeContext.messages.append(message)
+                },
+                pointerToContext
+            )
+
+            self.lastMessages.removeAll(keepingCapacity: true)
+            visitorContext.messages.forEach { message in
+                let decodedMessage =
+                    MidiMessage.decode(message) ?? Localized.midiMessageUnknown
+                self.lastMessages.append(decodedMessage)
             }
-
-        self.lastMessages.removeAll(keepingCapacity: true)
-        visitorContext.messages.forEach { message in
-            let decodedMessage =
-                MidiMessage.decode(message) ?? Localized.midiMessageUnknown
-            self.lastMessages.append(decodedMessage)
+        } else {
+            print("Received message from \(source), but reception is disabled")
         }
     }
 
 }
 
 private final class EventListVisitorContext {
-    let ref: MIDIEndpointRef?
     let stamp: UInt64 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
     var messages: [MIDIUniversalMessage] = []
-
-    init(_ ref: MIDIEndpointRef?) {
-        self.ref = ref
-    }
 }

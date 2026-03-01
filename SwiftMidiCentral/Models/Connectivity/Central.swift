@@ -17,4 +17,6 @@ protocol Central {
     
     func connect(to device: UUID) throws
     func disconnect(from device: UUID) throws
+    
+    func send(_ data: [Data], to remote: RemoteDetails)
 }

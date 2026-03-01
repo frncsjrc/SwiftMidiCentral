@@ -18,7 +18,7 @@ struct TopView: View {
                     .font(.title)
                     .fontWeight(.bold)
             ) {
-                SetupView(manager: $manager)
+                SetupView(manager: manager)
             }
             .padding(.horizontal, 10)
 
@@ -29,7 +29,12 @@ struct TopView: View {
                     .fontWeight(.bold)
                     .padding(.top, 10)
             ) {
-                OutgoingView(manager: $manager)
+                OutgoingView(
+                    manager: $manager
+                )
+                .onAppear {
+                    print("Outgoing view appears")
+                }
             }
             .padding(.horizontal, 10)
 
@@ -41,20 +46,21 @@ struct TopView: View {
                     .padding(.top, 10)
             ) {
                 IncomingView(manager: manager)
+                    .onAppear {
+                        print("Incoming view appears")
+                    }
             }
             .padding(.horizontal, 10)
+        }
+        .onAppear {
+            print("Top view appears")
+            UIApplication.shared.isIdleTimerDisabled = true
         }
     }
 }
 
 #Preview {
     let manager = CommunicationManager()
-
-    manager.central.startScanning()
-    manager.selectedDestination =
-        CommunicationManager.remoteSamples.first!
-        .value.id
-
     manager.lastSource = "Test"
     manager.lastMessages = ["Test 1", "Test 2", "Test 3"]
 

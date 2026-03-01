@@ -5,33 +5,38 @@
 //  Created by François Jean Raymond CLÉMENT on 29/11/2025.
 //
 
+import CoreBluetooth
 import CoreMIDI
 import SwiftUI
-import CoreBluetooth
 
 struct OutgoingView: View {
     @Binding var manager: CommunicationManager
 
-    var remotes: [UUID: String] {
-        var remotes: [UUID: String] = [:]
-        manager.remotes.forEach { remote in
-            if remote.peripheral?.state == .connected || remote.destination != nil {
-                remotes[remote.id] = remote.name
+    @State var selectedDestination: UUID? = nil
+
+    var destinationIndices: Set<Int> {
+        var indices: Set<Int> = []
+        for (index, remote) in manager.remotes.enumerated() {
+            let connected =
+                switch remote.interface {
+                case .midi(_, let destination):
+                    destination != nil
+                case .bluetooth:
+                    remote.state == .connected
+                }
+            if connected {
+                if manager.selectedDestination == nil {
+                    manager.selectedDestination = remote.id
+                }
+                indices.insert(index)
             }
         }
-        if remotes.isEmpty {
-            manager.selectedDestination = nil
-        } else if manager.selectedDestination == nil
-            || !remotes.keys.contains(manager.selectedDestination!)
-        {
-            manager.selectedDestination = remotes.first?.key
-        }
-        return remotes
+        return indices
     }
 
     var body: some View {
         VStack(alignment: .leading) {
-            if remotes.isEmpty {
+            if destinationIndices.isEmpty {
                 Text(Localized.outgoingViewNoDestinations)
             } else {
                 HStack {
@@ -39,14 +44,17 @@ struct OutgoingView: View {
                     Spacer()
                     Picker(
                         Localized.outgoingViewDestinationLabel,
-                        selection: $manager.selectedDestination
+                        selection: $selectedDestination
                     ) {
-                        ForEach($manager.remotes) { $remote in
-                            Text(remote.name)
-                                .tag(remote.id)
+                        ForEach(manager.remotes) { remote in
+                            let disconnected = remote.state != .connected
+                            Text(remote.name).tag(remote.id)
+                                .selectionDisabled(disconnected)
                         }
                     }
-//                    .accessibilityIdentifier(ViewTags.Pickers.destination)
+                    .onChange(of: selectedDestination) {
+                        manager.selectedDestination = selectedDestination
+                    }
                 }
                 .padding(.horizontal)
             }
@@ -85,19 +93,29 @@ struct OutgoingView: View {
             }
             .fontWeight(.bold)
             .buttonStyle(.bordered)
-            .disabled(manager.selectedDestination == nil)
+            .disabled(selectedDestination == nil)
+        }
+        .onChange(of: destinationIndices) {
+            if selectedDestination == nil {
+                if manager.selectedDestination != nil {
+                    selectedDestination = manager.selectedDestination
+                } else if !destinationIndices.isEmpty {
+                    selectedDestination =
+                        manager.remotes[destinationIndices.first!].id
+                }
+            }
         }
     }
 }
 
 extension OutgoingView {
     static let c4Note: [UInt32] = [
-        MIDI1UPNoteOn(0, 0, 60, 128),
-        MIDI1UPNoteOff(0, 0, 60, 0),
+        MIDI1UPNoteOn(0, 0, 60, 127),
+        MIDI1UPNoteOff(0, 0, 60, 127),
     ]
 
     static let e4Note: [UInt32] = [
-        MIDI1UPNoteOn(0, 0, 64, 128),
+        MIDI1UPNoteOn(0, 0, 64, 127),
         MIDI1UPNoteOff(0, 0, 64, 0),
     ]
 
@@ -116,11 +134,36 @@ extension OutgoingView {
     ]
 }
 
-#Preview {
+#Preview("Wired") {
+    @Previewable @State var manager = CommunicationManager()
+    manager.refresh()
+    return OutgoingView(manager: $manager)
+}
+
+#Preview("Central") {
     @Previewable @State var manager = CommunicationManager()
     manager.central.startScanning()
-    manager.selectedDestination =
-        CommunicationManager.remoteSamples.first!.value.id
+    return OutgoingView(manager: $manager)
+}
+
+#Preview("Peripheral") {
+    @Previewable @State var manager = CommunicationManager()
+    manager.peripheral.startAdvertizing()
+    return OutgoingView(manager: $manager)
+}
+
+#Preview("Disconnected") {
+    @Previewable @State var manager = CommunicationManager()
+
+    manager.remotes.append(contentsOf: [
+        RemoteDetails(name: "Test1", state: .disconnected),
+        RemoteDetails(name: "Test2", state: .offline),
+    ])
 
     return OutgoingView(manager: $manager)
+}
+
+#Preview("Empty") {
+    @Previewable @State var manager = CommunicationManager()
+    OutgoingView(manager: $manager)
 }

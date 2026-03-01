@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import CoreMIDI
 
 struct Localized {
     static var appLocale: Locale = .autoupdatingCurrent
@@ -181,6 +182,15 @@ struct Localized {
         comment: "Log message when the local manager is refreshing"
     )
     
+    static func localUnknownDeviceName(_ endPoint: MIDIEndpointRef) -> String {
+        String(
+            localized: "local.unknownDeviceName",
+            defaultValue: "Unknown device name for MIDI end point: \(endPoint)",
+            locale: appLocale,
+            comment: "Returned value when the MIDI manager cannot retrieve a device name for an unknown end point"
+        )
+    }
+    
     static func localUnknownSourceName(_ peripheral: UInt32) -> String {
         String(
             localized: "local.unknownSourceName",
@@ -322,6 +332,13 @@ struct Localized {
         comment: "Text to display when an unknown MIDI message is received"
     )
     
+    static let midiMessageInvalidStatus = String(
+        localized: "midi.messageInvalidStatus",
+        defaultValue: "Invalid message status",
+        locale: appLocale,
+        comment: "Text to display when an MIDI message with invalid status is received"
+    )
+    
     static let midiMessageUnsupported = String(
         localized: "midi.messageUnsupported",
         defaultValue: "Unsupported message",
@@ -331,14 +348,28 @@ struct Localized {
     
     static let setupViewStartScanning = String(
         localized: "view.setupStartScanning",
-        defaultValue: "Start scanning",
+        defaultValue: "Scan",
         locale: appLocale,
         comment: "Text for the button in the setup view that starts scanning for MIDI devices"
     )
     
     static let setupViewStopScanning = String(
         localized: "view.setupStopScanning",
-        defaultValue: "Stop scanning",
+        defaultValue: "Stop scan",
+        locale: appLocale,
+        comment: "Text for the button in the setup view that stops scanning for MIDI devices"
+    )
+    
+    static let setupViewStartAdvertizing = String(
+        localized: "view.setupStartAdvertizing",
+        defaultValue: "Advertize",
+        locale: appLocale,
+        comment: "Text for the button in the setup view that starts scanning for MIDI devices"
+    )
+    
+    static let setupViewStopAdvertizing = String(
+        localized: "view.setupStopAdvertizing",
+        defaultValue: "Stop ads",
         locale: appLocale,
         comment: "Text for the button in the setup view that stops scanning for MIDI devices"
     )
@@ -373,7 +404,7 @@ struct Localized {
     
     static let outgoingViewNoDestinations = String(
         localized: "view.outgoingNoDestinationsLabel",
-        defaultValue: "Please refresh or scan for devices.",
+        defaultValue: "Please scan, advertize or refresh devices.",
         locale: appLocale,
         comment: "Text displayed when there are no MIDI destinations available, asking to scan or refresh."
     )

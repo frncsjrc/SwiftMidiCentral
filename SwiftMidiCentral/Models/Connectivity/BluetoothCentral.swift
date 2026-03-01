@@ -5,6 +5,7 @@
 //  Created by François Jean Raymond CLÉMENT on 21/11/2025.
 //
 
+import Collections
 import CoreBluetooth
 import CoreMIDI
 import Foundation
@@ -14,9 +15,12 @@ import OSLog
 class BluetoothCentral: NSObject, Central {
 
     private var centralManager: CBCentralManager!
+    private var sendBuffer: [CBPeripheral: Deque<Data>] = [:]
     private(set) var isScanning: Bool = false
 
     var communicationManager: CommunicationManager?
+
+    private var discoveredPeripherals: Set<CBPeripheral> = []
 
     override init() {
         super.init()
@@ -48,25 +52,80 @@ class BluetoothCentral: NSObject, Central {
     }
 
     func connect(to peripheralId: UUID) throws {
-        if let peripheral = communicationManager?.remotes.first(where: {
+        if let remote = communicationManager?.remotes.first(where: {
             $0.id == peripheralId
-        })?.peripheral {
-            if peripheral.state != .connected {
-                centralManager.connect(
-                    peripheral,
-                    options: [
-                        CBConnectPeripheralOptionEnableAutoReconnect: true
-                    ]
-                )
+        }) {
+            if case .bluetooth(let peripheral, _) = remote.interface {
+                if let peripheral, peripheral.state != .connected {
+                    centralManager.connect(
+                        peripheral,
+                        options: [
+                            CBConnectPeripheralOptionEnableAutoReconnect: true
+                        ]
+                    )
+                }
             }
         }
     }
 
     func disconnect(from peripheralId: UUID) throws {
-        if let peripheral = communicationManager?.remotes.first(where: {
+        if let remote = communicationManager?.remotes.first(where: {
             $0.id == peripheralId
-        })?.peripheral {
-            centralManager.cancelPeripheralConnection(peripheral)
+        }) {
+            if case .bluetooth(let peripheral, _) = remote.interface {
+                if let peripheral, peripheral.state == .connected {
+                    centralManager.cancelPeripheralConnection(peripheral)
+                }
+            }
+        }
+    }
+
+    func send(_ data: [Data], to remote: RemoteDetails) {
+        guard case .bluetooth(let peripheral, _) = remote.interface,
+            let peripheral
+        else {
+            return
+        }
+
+        sendBuffer[peripheral, default: []].append(contentsOf: data)
+
+        send(to: peripheral)
+    }
+
+    private func send(to destination: CBPeripheral) {
+        guard sendBuffer[destination] != nil else {
+            return
+        }
+
+        guard
+            let service = destination.services?.first(where: {
+                $0.uuid == Constants.midiServiceUUID
+            })
+        else {
+            Logger.connectivity.error(
+                "No MIDI service found on peripheral \(destination.debugDescription)"
+            )
+            return
+        }
+
+        guard
+            let cheracteristic = service.characteristics?.first(where: {
+                $0.uuid == Constants.midiCharacteristicUUID
+            })
+        else {
+            Logger.connectivity.error(
+                "No MIDI data characteristic found on peripheral \(destination.debugDescription)"
+            )
+            return
+        }
+
+        while let packet = sendBuffer[destination]!.popFirst()  //            && $$destination.canSendWriteWithoutResponse
+        {
+            destination.writeValue(
+                packet,
+                for: cheracteristic,
+                type: .withoutResponse
+            )
         }
     }
 
@@ -100,53 +159,118 @@ extension BluetoothCentral: CBCentralManagerDelegate {
         advertisementData: [String: Any],
         rssi RSSI: NSNumber
     ) {
+        discoveredPeripherals.insert(peripheral)
+        if peripheral.state != .connected {
+            centralManager.connect(
+                peripheral,
+                options: [
+                    CBConnectPeripheralOptionEnableAutoReconnect: true
+                ]
+            )
+        }
         let name = peripheral.name ?? Localized.remoteUnknownDevice
         let advertisedName =
             advertisementData[CBAdvertisementDataLocalNameKey] as? String
             ?? Localized.remoteUnknownDevice
 
         DispatchQueue.main.async {
-            if let remoteIndex = self.communicationManager?.remotes.firstIndex(
+            if let remote = self.communicationManager?.remotes.first(
+                where: {
+                    $0.name == name
+                })
+            {
+                if case .bluetooth(_, let central) = remote.interface {
+                    remote.advertizedName = advertisedName
+                    remote.interface = .bluetooth(peripheral, central)
+                    remote.state = .disconnected
+                }
+            } else if let remote = self.communicationManager?.remotes.first(
                 where: {
                     $0.id == peripheral.identifier
                 })
             {
-                self.communicationManager?.remotes[remoteIndex].name = name
-                self.communicationManager?.remotes[remoteIndex].advertisedName =
-                    advertisedName
-                self.communicationManager?.remotes[remoteIndex].peripheral =
-                    peripheral
-                self.communicationManager?.remotes[remoteIndex].state = .offline
+                if case .bluetooth(_, let central) = remote.interface {
+                    remote.name = name
+                    remote.advertizedName = advertisedName
+                    remote.interface = .bluetooth(peripheral, central)
+                    remote.state = .disconnected
+                }
             } else {
                 self.communicationManager?.remotes.append(
                     RemoteDetails(
                         id: peripheral.identifier,
                         name: name,
-                        advertisedName: advertisedName,
-                        peripheral: peripheral,
-                        state: .offline
+                        advertizedName: advertisedName,
+                        interface: .bluetooth(peripheral, nil),
+                        state: .disconnected
                     )
                 )
             }
         }
-
-        centralManager.connect(
-            peripheral,
-            options: [CBConnectPeripheralOptionEnableAutoReconnect: true]
-        )
     }
 
     func centralManager(
         _ central: CBCentralManager,
         didConnect peripheral: CBPeripheral
     ) {
+//        if let remote = communicationManager?.remotes.first(where: {
+//            $0.name == peripheral.name
+//        }) {
+//            print("Found remote matching discovered peripheral: \(remote.name)")
+//            if case .midi(let source, let destination) = remote.interface {
+//                let endpoint: MIDIEndpointRef? =
+//                    source == nil ? destination : source
+//                if let endpoint {
+//                    var entity = MIDIEntityRef()
+//                    var device = MIDIDeviceRef()
+//                    if MIDIEndpointGetEntity(endpoint, &entity) == noErr {
+//                        if MIDIEntityGetDevice(entity, &device) == noErr {
+//                            if MIDISetupRemoveDevice(device) == noErr {
+//                                Logger.connectivity.info(
+//                                    "Removed device for source MIDI endpoint"
+//                                )
+//                            } else {
+//                                Logger.connectivity.error(
+//                                    "Failed to remove device for source MIDI endpoint"
+//                                )
+//                            }
+//                        } else {
+//                            Logger.connectivity.error(
+//                                "Failed to get device for source MIDI endpoint"
+//                            )
+//                        }
+//                    } else {
+//                        Logger.connectivity.error(
+//                            "Failed to get entity for source MIDI endpoint"
+//                        )
+//                    }
+//                }
+//            }
+//        }
         peripheral.delegate = self
         peripheral.discoverServices([Constants.midiServiceUUID])
 
-        if let remoteIndex = communicationManager?.remotes.firstIndex(where: {
-            $0.id == peripheral.identifier
-        }) {
-            communicationManager?.remotes[remoteIndex].peripheral = peripheral
+        DispatchQueue.main.async {
+            if let remote = self.communicationManager?.remotes.first(where: {
+                $0.id == peripheral.identifier
+            }) {
+                var central: CBCentral? = nil
+                if case .bluetooth(_, let formerCentral) = remote.interface {
+                    central = formerCentral
+                }
+
+                remote.interface = .bluetooth(peripheral, central)
+                remote.state = .connected
+            } else {
+                self.communicationManager?.remotes.append(
+                    RemoteDetails(
+                        id: peripheral.identifier,
+                        name: peripheral.name ?? Localized.remoteUnknownDevice,
+                        interface: .bluetooth(peripheral, nil),
+                        state: .connected
+                    )
+                )
+            }
         }
     }
 
@@ -190,11 +314,13 @@ extension BluetoothCentral: CBCentralManagerDelegate {
                 )
             }
         } else {
-            if let remoteIndex = communicationManager?.remotes.firstIndex(
+            if let remote = communicationManager?.remotes.first(
                 where: { $0.id == peripheral.identifier })
             {
-                communicationManager?.remotes[remoteIndex].peripheral =
-                    peripheral
+                if case .bluetooth(_, let formerCentral) = remote.interface {
+                    remote.interface = .bluetooth(peripheral, formerCentral)
+                    remote.state = .disconnected
+                }
             }
             Logger.connectivity.info(
                 "\(Localized.bluetoothDidDisconnectFromPeripheral(peripheralName))"
@@ -260,10 +386,22 @@ extension BluetoothCentral: CBPeripheralDelegate {
 
         for characteristic in service.characteristics ?? [] {
             if characteristic.uuid == Constants.midiCharacteristicUUID {
+
                 peripheral.readValue(for: characteristic)
-                peripheral.discoverDescriptors(for: characteristic)
+                //                peripheral.discoverDescriptors(for: characteristic)
                 peripheral.setNotifyValue(true, for: characteristic)
-                self.communicationManager?.refresh()
+
+                //                MIDIBluetoothDriverActivateAllConnections()
+                //                self.communicationManager?.refresh()
+
+                if let remote = communicationManager?.remotes.first(where: {
+                    $0.id == peripheral.identifier
+                }) {
+                    DispatchQueue.main.async {
+                        remote.state = .connected
+                        remote.enableReception = true
+                    }
+                }
                 break
             }
         }
@@ -327,13 +465,14 @@ extension BluetoothCentral: CBPeripheralDelegate {
             return
         }
         if let data = characteristic.value, !data.isEmpty {
-            print("Updated characteristic value: \(data)")
-
             if let remote = communicationManager?.remotes.first(where: {
                 $0.id == peripheral.identifier
-            }), remote.source == nil {
-                communicationManager?.lastSource = remote.name
-                communicationManager?.lastMessages = MidiMessage.decode(data)
+            }) {
+                DispatchQueue.main.async {
+                    self.communicationManager?.lastSource = remote.name
+                    self.communicationManager?.lastMessages =
+                        MidiMessage.decode(data)
+                }
             }
         }
     }
@@ -353,6 +492,11 @@ extension BluetoothCentral: CBPeripheralDelegate {
         if let data = descriptor.value {
             print("Updated descriptor value: \(data)")
         }
+    }
+
+    func peripheralIsReady(toSendWriteRequests peripheral: CBPeripheral) {
+        print("peripheral is ready to send write requests")
+        send(to: peripheral)
     }
 
 }  // CBPeripheralDelegate extension

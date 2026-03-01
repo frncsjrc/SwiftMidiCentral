@@ -8,13 +8,12 @@
 import SwiftUI
 
 struct SetupView: View {
-    @Binding var manager: CommunicationManager
+    @State var manager: CommunicationManager
+
     var body: some View {
         HStack {
             Button(
-                manager.central.isScanning
-                    ? Localized.setupViewStopScanning
-                    : Localized.setupViewStartScanning,
+                Localized.setupViewStartScanning,
                 systemImage: "externaldrive.fill.badge.wifi"
             ) {
                 if manager.central.isScanning {
@@ -24,11 +23,32 @@ struct SetupView: View {
                 }
             }
             .accessibilityIdentifier(ViewTags.Buttons.scan)
-            .padding(12)
+            .strikethrough(!manager.central.isScanning)
+            .fontWidth(.compressed)
+            .padding(8)
             .background(manager.central.isScanning ? Color.green : Color.red)
             .foregroundColor(.white)
             .cornerRadius(50)
-            .padding(.horizontal)
+
+            Button(
+                Localized.setupViewStartAdvertizing,
+                systemImage: "externaldrive.fill.badge.wifi"
+            ) {
+                if manager.peripheral.isAdvertizing {
+                    manager.peripheral.stopAdvertising()
+                } else {
+                    manager.peripheral.startAdvertizing()
+                }
+            }
+            .accessibilityIdentifier(ViewTags.Buttons.advertize)
+            .strikethrough(!manager.peripheral.isAdvertizing)
+            .fontWidth(.compressed)
+            .padding(8)
+            .background(
+                manager.peripheral.isAdvertizing ? Color.green : Color.red
+            )
+            .foregroundColor(.white)
+            .cornerRadius(50)
 
             Button(
                 Localized.setupViewRefresh,
@@ -37,25 +57,33 @@ struct SetupView: View {
                 manager.refresh()
             }
             .accessibilityIdentifier(ViewTags.Buttons.refresh)
-            .padding(12)
+            .fontWidth(.compressed)
+            .padding(8)
             .background(Color.blue)
             .foregroundColor(.white)
             .cornerRadius(50)
-            .padding(.horizontal)
         }
+        .onAppear {
+            print("Setup button stack appears")
+        }
+
         ScrollView {
-            ForEach(manager.remotes.indices, id: \.self) { index in
-                RemoteView(manager: manager, index: index)
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(manager.remotes.indices, id: \.self) { index in
+                    RemoteView(
+                        remote: $manager.remotes[index],
+                        manager: manager
+                    )
+                }
             }
+        }
+        .onAppear {
+            print("Setup scroll view appears")
         }
     }
 }
 
 #Preview {
     @Previewable @State var manager = CommunicationManager()
-    manager.central.startScanning()
-    manager.selectedDestination = CommunicationManager.remoteSamples.first!
-        .value.id
-
-    return SetupView(manager: $manager)
+    return SetupView(manager: manager)
 }

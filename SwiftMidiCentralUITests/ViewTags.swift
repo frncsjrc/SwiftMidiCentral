@@ -22,6 +22,7 @@ struct ViewTags {
     
     struct Buttons {
         static let scan: String = "scanButton"
+        static let advertize: String = "advertizeButton"
         static let refresh: String = "refreshButton"
         static let c4: String = "c4Button"
         static let e4: String = "e4Button"

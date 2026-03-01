@@ -9,13 +9,12 @@ import CoreBluetooth
 import CoreMIDI
 import Foundation
 
-struct RemoteDetails: Identifiable {
+@Observable
+class RemoteDetails: Identifiable {
     var id: UUID
+    var interface: RemoteInterface
     var name: String
-    var advertisedName: String? = nil
-    var peripheral: CBPeripheral? = nil
-    var source: MIDIEndpointRef? = nil
-    var destination: MIDIEndpointRef? = nil
+    var advertizedName: String? = nil
     var enableReception: Bool = false
     var state: RemoteState = .offline
     var manufacturer: String? = nil
@@ -24,10 +23,8 @@ struct RemoteDetails: Identifiable {
     init(
         id: UUID = UUID(),
         name: String,
-        advertisedName: String? = nil,
-        peripheral: CBPeripheral? = nil,
-        source: MIDIEndpointRef? = nil,
-        destination: MIDIEndpointRef? = nil,
+        advertizedName: String? = nil,
+        interface: RemoteInterface = .midi(),
         enableReception: Bool = false,
         state: RemoteState = .offline,
         manufacturer: String? = nil,
@@ -35,10 +32,8 @@ struct RemoteDetails: Identifiable {
     ) {
         self.id = id
         self.name = name
-        self.advertisedName = advertisedName
-        self.peripheral = peripheral
-        self.source = source
-        self.destination = destination
+        self.advertizedName = advertizedName
+        self.interface = interface
         self.enableReception = enableReception
         self.state = state
         self.manufacturer = manufacturer
@@ -48,8 +43,8 @@ struct RemoteDetails: Identifiable {
 
 extension RemoteDetails: CustomStringConvertible {
     var description: String {
-        if let advertisedName, !advertisedName.isEmpty {
-            "\(name) - \(advertisedName)"
+        if let advertizedName, !advertizedName.isEmpty {
+            "\(name) - \(advertizedName)"
         } else {
             name
         }
