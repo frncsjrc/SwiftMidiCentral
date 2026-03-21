@@ -24,7 +24,6 @@ class MidiManager: CommunicationManager {
 
     override init() {
         super.init()
-        self.reset()
         self.central = BluetoothCentral()
         self.central.communicationManager = self
         self.peripheral = BluetoothPeripheral()
@@ -100,6 +99,10 @@ class MidiManager: CommunicationManager {
         }
 
         DispatchQueue.main.async {
+            for remote in self.remotes {
+                remote.state = .disconnected
+            }
+
             let deviceCount = MIDIGetNumberOfDevices()
             let extDeviceCount = MIDIGetNumberOfExternalDevices()
 
@@ -148,6 +151,10 @@ class MidiManager: CommunicationManager {
                     "\tDriver Owner: \(deviceDriverOwner ?? "\"\""), Offline: \(deviceOffline ?? "\"\""), Protocol: \(deviceProtocol ?? "\"\"")"
                 )
 
+                let interface: RemoteInterface =
+                    (deviceDriverOwner?.lowercased().contains("bluetooth")
+                        ?? false) ? .bluetooth : .wired
+
                 let entities = MIDIDeviceGetNumberOfEntities(device)
                 print("  Device #\(i) has \(entities) entities")
 
@@ -184,20 +191,22 @@ class MidiManager: CommunicationManager {
                             ? MIDIEntityGetDestination(entity, 0) : nil
 
                         if let remote = self.remotes.first(where: {
-                            $0.name == deviceName
+                            (source != nil && $0.source == source)
+                                || (destination != nil
+                                    && $0.destination == destination)
                         }) {
-                            remote.interface = .midi(
-                                source: source,
-                                destination: destination
-                            )
+                            remote.interface = interface
+                            remote.source = source
+                            remote.destination = destination
+                            remote.state = .connected
                         } else {
                             self.remotes.append(
                                 RemoteDetails(
                                     name: deviceName,
-                                    interface: .midi(
-                                        source: source,
-                                        destination: destination
-                                    )
+                                    interface: interface,
+                                    source: source,
+                                    destination: destination,
+                                    state: .connected
                                 )
                             )
                         }
@@ -205,107 +214,46 @@ class MidiManager: CommunicationManager {
                 }
             }
         }
+        
+        checkSelectedDestination()
     }
 
-    override func connect(to id: UUID) throws {
-        guard let remote = remotes.first(where: { $0.id == id })
-        else {
-            Logger.connectivity.debug(
-                "Could not find remote with ID \(id) to connect to"
+    override func connect(to remote: RemoteDetails) throws {
+        if let source = remote.source {
+            MIDIPortConnectSource(inputPort, source, &remote.source!)
+            print(
+                "Source \(remote.name) is now connected to the MIDI inpur port"
             )
-            return
         }
-
+        
         remote.enableReception = true
-
-        if case .bluetooth(let peripheral, _) = remote.interface,
-            peripheral != nil
-        {
-            try? self.central.connect(to: remote.id)
-        } else {
-            if case .midi(let source, _) = remote.interface, let source {
-                _ = withUnsafeMutablePointer(to: &remote.name) { pointer in
-                    MIDIPortConnectSource(self.inputPort, source, pointer)
-                }
-            }
-            remote.state = .connected
-        }
+        print("Reception from \(remote.name) is now enabled")
     }
 
-    override func disconnect(from id: UUID) throws {
-        guard let remote = remotes.first(where: { $0.id == id })
-        else {
-            Logger.connectivity.debug(
-                "Could not find remote with ID \(id) to disconnect from"
+    override func disconnect(from remote: RemoteDetails) throws {
+        if let source = remote.source {
+            MIDIPortDisconnectSource(inputPort, source)
+            print(
+                "Source \(remote.name) has been disconnected from the MIDI inpur port"
             )
-            return
         }
 
         remote.enableReception = false
-
-        if case .bluetooth = remote.interface {
-            try? self.central.disconnect(from: remote.id)
-        } else {
-            if case .midi(let source, _) = remote.interface, let source {
-                MIDIPortDisconnectSource(self.inputPort, source)
-            }
-            remote.state = .disconnected
-        }
+        print("Reception from \(remote.name) has been disabled")
+        
+        checkSelectedDestination()
     }
 
     override func send(packets: [UInt32]) {
         guard !packets.isEmpty else { return }
 
         guard
-            let remote = self.remotes.first(where: {
-                $0.id == selectedDestination
-            })
+            let destination = selectedDestination
         else {
             Logger.connectivity.error("\(Localized.localUnsetDestination)")
             return
         }
 
-        switch remote.interface {
-        case .midi(_, let destination):
-            // Send through Core MIDI end point if available
-            if let destination {
-                coreSend(packets: packets, to: destination)
-            } else {
-                Logger.connectivity.warning("")
-            }
-            break
-        case .bluetooth(let peripheral, let central):
-            if peripheral != nil {
-                // Send through Bluetooth peripheral
-                peripheralSend(packets: packets, to: remote)
-            } else if let destination = central {
-                // Send through Bluetooth central
-                centralSend(packets: packets, to: destination)
-            }
-        }
-    }
-
-    private func deviceName(for endPoint: MIDIEndpointRef) -> String? {
-        var deviceName: String? = nil
-        var entity = MIDIClientRef()
-        var device = MIDIDeviceRef()
-        var name: Unmanaged<CFString>?
-        var status = MIDIEndpointGetEntity(endPoint, &entity)
-
-        if status == noErr {
-            status = MIDIEntityGetDevice(entity, &device)
-        }
-
-        if status == noErr {
-            MIDIObjectGetStringProperty(device, kMIDIPropertyName, &name)
-            deviceName = name?.takeRetainedValue() as String?
-        }
-
-        return deviceName
-    }
-
-    private func coreSend(packets: [UInt32], to destination: MIDIEntityRef) {
-        print("Sending data through core MIDI")
         var eventList = MIDIEventList()
         var currentPacket = MIDIEventListInit(&eventList, ._1_0)
         let listSize = (MemoryLayout.size(ofValue: eventList.packet) - 12) / 4
@@ -339,47 +287,6 @@ class MidiManager: CommunicationManager {
             Logger.connectivity.error(
                 "Failed to send MIDI event list (Status code: \(midiStatus)"
             )
-        }
-    }
-
-    private func peripheralSend(packets: [UInt32], to remote: RemoteDetails) {
-        print("Sending MIDI data through CBPeripheral")
-
-        guard case .bluetooth(let destination, _) = remote.interface else {
-            Logger.connectivity.error(
-                "No Bluetooth peripheral found to send data to"
-            )
-            return
-        }
-
-        let maxSize =
-            destination?.maximumWriteValueLength(for: .withoutResponse) ?? 256
-
-        let elapsedTime = (clock_gettime_nsec_np(CLOCK_MONOTONIC) - startupTime)
-        let encodedPackets = MidiMessage.encode(
-            packets,
-            maxSize: maxSize,
-            elapsedTime: elapsedTime
-        )
-
-        print("... sending data \(encodedPackets)")
-        central.send(encodedPackets, to: remote)
-    }
-
-    private func centralSend(packets: [UInt32], to destination: CBCentral) {
-        print("Sending MIDI data through CBCentral")
-        let maxSize = destination.maximumUpdateValueLength
-
-        let elapsedTime = (clock_gettime_nsec_np(CLOCK_MONOTONIC) - startupTime)
-        let encodedPackets = MidiMessage.encode(
-            packets,
-            maxSize: maxSize,
-            elapsedTime: elapsedTime
-        )
-
-        print("... sending data \(encodedPackets)")
-        encodedPackets.forEach {
-            peripheral.send($0, to: destination.identifier)
         }
     }
 
@@ -502,17 +409,20 @@ class MidiManager: CommunicationManager {
 
     private func processEventList(
         _ eventList: UnsafePointer<MIDIEventList>,
-        _ unsafeRawPointer: UnsafeMutableRawPointer?
+        _ refConn: UnsafeMutableRawPointer?
     ) {
-        let source: String =
-            unsafeRawPointer?.load(as: String.self)
-            ?? Localized.remoteUnknownDevice
+        guard
+            let source: MIDIEndpointRef = refConn?.load(as: MIDIEndpointRef.self),
+            let remote = self.remotes.first(where: { $0.source == source })
+        else {
+            print("Received message from \(Localized.remoteUnknownDevice)")
+            return
+        }
 
-        if let remote = self.remotes.first(where: { $0.name == source }),
-            remote.enableReception
+        if remote.enableReception
         {
             print("Processing event list received from ", source)
-            self.lastSource = source
+            self.lastSource = remote.name
 
             let visitorContext = EventListVisitorContext()
 
@@ -546,7 +456,15 @@ class MidiManager: CommunicationManager {
             print("Received message from \(source), but reception is disabled")
         }
     }
-
+    
+    private func checkSelectedDestination() {
+        if self.selectedDestination == nil,
+            let remote = self.remotes.first(where: { $0.destination != nil }
+            )
+        {
+            self.selectedDestination = remote.destination
+        }
+    }
 }
 
 private final class EventListVisitorContext {

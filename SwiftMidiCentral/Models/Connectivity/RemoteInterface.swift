@@ -10,6 +10,15 @@ import CoreMIDI
 import Foundation
 
 enum RemoteInterface: Equatable {
-    case midi(source: MIDIEndpointRef? = nil, destination: MIDIEndpointRef? = nil)
-    case bluetooth(CBPeripheral? = nil, CBCentral? = nil)
+    case wired
+    case bluetooth
+    
+    var icon: String {
+        switch self {
+        case .wired:
+            return "externaldrive.connected.to.line.below"
+        case .bluetooth:
+            return "externaldrive.badge.wifi"
+        }
+    }
 }

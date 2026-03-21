@@ -42,8 +42,32 @@ class BluetoothPeripheral: NSObject, Peripheral {
         )
     }
 
+    func startAdvertizing() {
+        guard !isAdvertizing else { return }
+
+        guard !peripheralManager.isAdvertising else {
+            isAdvertizing = true
+            return
+        }
+
+        addMidiService()
+
+        print("Starting advertising as \(peripheralName)...")
+        peripheralManager.startAdvertising([
+            CBAdvertisementDataServiceUUIDsKey: [
+                Constants.midiServiceUUID
+            ],
+            CBAdvertisementDataLocalNameKey: peripheralName,
+        ])
+    }
+
+    func stopAdvertising() {
+        peripheralManager.stopAdvertising()
+        isAdvertizing = false
+    }
+
     @MainActor
-    func addMidiService() {
+    private func addMidiService() {
         if midiService != nil {
             return
         }
@@ -94,71 +118,6 @@ class BluetoothPeripheral: NSObject, Peripheral {
         midiService.includedServices = []
         peripheralManager!.add(midiService)
     }
-
-    func startAdvertizing() {
-        guard !isAdvertizing else { return }
-
-        guard !peripheralManager.isAdvertising else {
-            isAdvertizing = true
-            return
-        }
-
-        addMidiService()
-
-        peripheralManager.startAdvertising([
-            CBAdvertisementDataServiceUUIDsKey: [
-                Constants.midiServiceUUID
-            ],
-            CBAdvertisementDataLocalNameKey: peripheralName,
-        ])
-    }
-
-    func stopAdvertising() {
-        peripheralManager.stopAdvertising()
-        isAdvertizing = false
-    }
-
-    func send(_ data: Data, to centralId: UUID) {
-        guard let midiCharacteristic else {
-            Logger.connectivity.warning(
-                "No MIDI characteristic available to send data to central with id: \(centralId)"
-            )
-            return
-        }
-
-        guard
-            let remote = communicationManager?.remotes.first(where: {
-                $0.id == centralId
-            })
-        else {
-            Logger.connectivity.warning(
-                "Could not send data to remote with id: \(centralId)"
-            )
-            return
-        }
-
-        let central: CBCentral? =
-            switch remote.interface {
-            case .midi:
-                nil
-            case .bluetooth(_, let destination):
-                destination
-            }
-
-        if let central {
-            print("...updating MIDI characteristic value")
-            peripheralManager.updateValue(
-                data,
-                for: midiCharacteristic,
-                onSubscribedCentrals: [central]
-            )
-        } else {
-            Logger.connectivity.warning(
-                "Could not send data to remote with id: \(centralId) that has not Bluetooth central"
-            )
-            return
-        }
-    }
 }
 
 extension BluetoothPeripheral: CBPeripheralManagerDelegate {
@@ -202,37 +161,7 @@ extension BluetoothPeripheral: CBPeripheralManagerDelegate {
                 })
                 as? CBMutableCharacteristic
 
-            if let characteristic = self.midiCharacteristic,
-                let centrals = characteristic.subscribedCentrals
-            {
-                centrals.forEach { central in
-                    self.subscribedCentrals.insert(central)
-                    if let remote = self.communicationManager?.remotes.contains(
-                        where: {
-                            $0.id == central.identifier
-                        }) as? RemoteDetails
-                    {
-                        if case .bluetooth(let formerPeripheral, _) = remote
-                            .interface
-                        {
-                            remote.interface = .bluetooth(
-                                formerPeripheral,
-                                central
-                            )
-                            remote.state = .connected
-                        }
-                    } else {
-                        self.communicationManager?.remotes.append(
-                            RemoteDetails(
-                                id: central.identifier,
-                                name: central.identifier.uuidString,
-                                interface: .bluetooth(nil, central),
-                                state: .connected
-                            )
-                        )
-                    }
-                }
-            }
+            self.communicationManager?.refresh()
         }
     }
 
@@ -284,27 +213,7 @@ extension BluetoothPeripheral: CBPeripheralManagerDelegate {
         print("characteristic: ", characteristic)
 
         DispatchQueue.main.async {
-            self.subscribedCentrals.insert(central)
-            if let remote = self.communicationManager?.remotes
-                .first(
-                    where: {
-                        $0.id == central.identifier
-                    })
-            {
-                if case .bluetooth(let formerPeripheral, _) = remote.interface {
-                    remote.interface = .bluetooth(formerPeripheral, central)
-                    remote.state = .connected
-                }
-            } else {
-                self.communicationManager?.remotes.append(
-                    RemoteDetails(
-                        id: central.identifier,
-                        name: central.identifier.uuidString,
-                        interface: .bluetooth(nil, central),
-                        state: .connected
-                    )
-                )
-            }
+            self.communicationManager?.refresh()
         }
     }
 
@@ -313,61 +222,12 @@ extension BluetoothPeripheral: CBPeripheralManagerDelegate {
         central: CBCentral,
         didUnsubscribeFrom characteristic: CBCharacteristic
     ) {
+        print("***")
+        print("subscriber: ", central)
+        print("unsubsrcibed from characteristic: ", characteristic)
+
         DispatchQueue.main.async {
-            if let remoteIndex = self.communicationManager?.remotes
-                .firstIndex(
-                    where: {
-                        $0.id == central.identifier
-                    })
-            {
-                self.communicationManager?.remotes[remoteIndex].state =
-                    .disconnected
-            }
+            self.communicationManager?.refresh()
         }
-    }
-
-    func peripheralManager(
-        _ peripheral: CBPeripheralManager,
-        didReceiveRead request: CBATTRequest
-    ) {
-        request.value = self.midiData
-        peripheral.respond(to: request, withResult: .success)
-
-    }
-
-    func peripheralManager(
-        _ peripheral: CBPeripheralManager,
-        didReceiveWrite requests: [CBATTRequest]
-    ) {
-        print("peripheral receive write request")
-        if let firstRequest = requests.first {
-            DispatchQueue.main.async {
-                peripheral.respond(to: firstRequest, withResult: .success)
-            }
-        }
-
-        for request in requests {
-            let centralId = request.central.identifier
-            if var packet: Data = request.value {
-                packet = packet.dropFirst(request.offset)
-                DispatchQueue.main.async {
-                    if let remote = self.communicationManager?.remotes.first(
-                        where: {
-                            if case .bluetooth(_, let central) = $0.interface {
-                                central?.identifier == centralId
-                            } else {
-                                false
-                            }
-                        })
-                    {
-                        self.communicationManager?.lastSource = remote.name
-                        self.communicationManager?.lastMessages =
-                            MidiMessage.decode(packet)
-                    }
-                }
-            }
-        }
-        
-//        peripheral.respond(to: requests.first!, withResult: .success)
     }
 }

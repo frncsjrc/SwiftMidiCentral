@@ -11,6 +11,14 @@ import CoreMIDI
 struct Localized {
     static var appLocale: Locale = .autoupdatingCurrent
     
+    static let bluetoothPeripheralName = String(
+        localized: "bluetooth.peripheralName",
+        defaultValue: "Peripheral name",
+        locale: appLocale,
+        comment:
+            "Label displayed in the UI when asking for this App's peripheral name"
+    )
+    
     static let bluetoothUnavailable = String(
         localized: "bluetooth.unavailable",
         defaultValue: "Bluetooth is not available",
@@ -200,10 +208,10 @@ struct Localized {
         )
     }
     
-    static func localUnknownDestinationName(_ peripheral: UUID) -> String {
+    static func localUnknownDestinationName(_ endpoint: MIDIEndpointRef) -> String {
         String(
             localized: "local.unknownSourceName",
-            defaultValue: "Unknown destination name for peripheral: \(peripheral.uuidString)",
+            defaultValue: "Unknown destination name for peripheral end point: \(endpoint)",
             locale: appLocale,
             comment: "Returned value when the local manager cannot retrieve a destination name for an unknown peripheral"
         )
@@ -346,6 +354,20 @@ struct Localized {
         comment: "Text to display when receiving an unsupported MIDI message (for instance a sysex message)"
     )
     
+    static let remotesCommunicaationSetup = String(
+        localized: "view.remotesCommunicationSetup",
+        defaultValue: "Communication setup",
+        locale: appLocale,
+        comment: "Text for the button in the remotes that present the setup sheet"
+    )
+    
+    static let setupViewReset = String(
+        localized: "view.setupReset",
+        defaultValue: "Reset Core MIDI",
+        locale: appLocale,
+        comment: "Text for the button in the setup view that resets the list of available Core MIDI devices"
+    )
+    
     static let setupViewStartScanning = String(
         localized: "view.setupStartScanning",
         defaultValue: "Scan",
@@ -355,7 +377,7 @@ struct Localized {
     
     static let setupViewStopScanning = String(
         localized: "view.setupStopScanning",
-        defaultValue: "Stop scan",
+        defaultValue: "Stop scanning",
         locale: appLocale,
         comment: "Text for the button in the setup view that stops scanning for MIDI devices"
     )
@@ -369,16 +391,16 @@ struct Localized {
     
     static let setupViewStopAdvertizing = String(
         localized: "view.setupStopAdvertizing",
-        defaultValue: "Stop ads",
+        defaultValue: "Stop advertising",
         locale: appLocale,
         comment: "Text for the button in the setup view that stops scanning for MIDI devices"
     )
     
     static let setupViewRefresh = String(
         localized: "view.setupRefresh",
-        defaultValue: "Refresh",
+        defaultValue: "Refresh Core MIDI",
         locale: appLocale,
-        comment: "Text for the button in the setup view that refreshes the list of available MIDI devices"
+        comment: "Text for the button in the setup view that refreshes the list of available Core MIDI devices"
     )
     
     static let setupViewUnknownSource = String(

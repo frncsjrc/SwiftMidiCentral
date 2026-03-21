@@ -11,29 +11,29 @@ import Foundation
 
 @Observable
 class RemoteDetails: Identifiable {
-    var id: UUID
-    var interface: RemoteInterface
     var name: String
-    var advertizedName: String? = nil
+    var interface: RemoteInterface
+    var source: MIDIEndpointRef?
+    var destination: MIDIEndpointRef?
     var enableReception: Bool = false
     var state: RemoteState = .offline
     var manufacturer: String? = nil
     var model: String? = nil
 
     init(
-        id: UUID = UUID(),
         name: String,
-        advertizedName: String? = nil,
-        interface: RemoteInterface = .midi(),
+        interface: RemoteInterface = .wired,
+        source: MIDIEndpointRef? = nil,
+        destination: MIDIEndpointRef? = nil,
         enableReception: Bool = false,
         state: RemoteState = .offline,
         manufacturer: String? = nil,
         model: String? = nil
     ) {
-        self.id = id
         self.name = name
-        self.advertizedName = advertizedName
         self.interface = interface
+        self.source = source
+        self.destination = destination
         self.enableReception = enableReception
         self.state = state
         self.manufacturer = manufacturer
@@ -43,10 +43,6 @@ class RemoteDetails: Identifiable {
 
 extension RemoteDetails: CustomStringConvertible {
     var description: String {
-        if let advertizedName, !advertizedName.isEmpty {
-            "\(name) - \(advertizedName)"
-        } else {
-            name
-        }
+        name
     }
 }

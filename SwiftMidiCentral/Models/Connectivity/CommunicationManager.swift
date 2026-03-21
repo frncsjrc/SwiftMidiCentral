@@ -16,12 +16,12 @@ class CommunicationManager {
     var central: Central = LocalCentral()
     var peripheral: Peripheral = LocalPeripheral()
 
-    var selectedDestination: UUID? = nil
+    var selectedDestination: MIDIEndpointRef? = nil
 
     var lastSource: String = ""
     var lastMessages: [String] = []
 
-    var outputBuffer: [UUID: [UInt32]] = [:]
+    var outputBuffer: [MIDIEndpointRef: [UInt32]] = [:]
 
     init() {
         self.central.communicationManager = self
@@ -39,6 +39,8 @@ class CommunicationManager {
                     RemoteDetails(
                         name: remoteSample.name,
                         interface: remoteSample.interface,
+                        source: remoteSample.source,
+                        destination: remoteSample.destination,
                         manufacturer: remoteSample.manufacturer,
                         model: remoteSample.model
                     )
@@ -47,32 +49,14 @@ class CommunicationManager {
         }
     }
 
-    func connect(to id: UUID) throws {
-        guard
-            let remote = remotes.first(where: { $0.id == id })
-        else {
-            Logger.connectivity.debug(
-                "Could not find remote with ID \(id) to connect to"
-            )
-            return
-        }
-
+    func connect(to remote: RemoteDetails) throws {
         remote.enableReception = true
         Logger.connectivity.debug(
             "Connected to remote: \(remote.name)"
         )
     }
 
-    func disconnect(from id: UUID) throws {
-        guard
-            let remote = remotes.first(where: { $0.id == id })
-        else {
-            Logger.connectivity.debug(
-                "Could not find remote with ID \(id) to disconnect from"
-            )
-            return
-        }
-
+    func disconnect(from remote: RemoteDetails) throws {
         remote.enableReception = false
         Logger.connectivity.debug(
             "Disconnected from remote: \(remote.name)"
@@ -81,12 +65,7 @@ class CommunicationManager {
 
     func sourceName(for endpoint: MIDIEndpointRef) -> String {
         if let name = remotes.first(where: {
-            switch $0.interface {
-            case .midi(let source, _):
-                source == endpoint
-            default:
-                false
-            }
+            $0.source == endpoint
         })?.name {
             return name
         } else {
@@ -94,11 +73,13 @@ class CommunicationManager {
         }
     }
 
-    func destinationName(for peripheral: UUID) -> String {
-        if let name = remotes.first(where: { $0.id == peripheral })?.name {
+    func destinationName(for endpoint: MIDIEndpointRef) -> String {
+        if let name = remotes.first(where: {
+            $0.destination == endpoint
+        })?.name {
             return name
         } else {
-            return Localized.localUnknownDestinationName(peripheral)
+            return Localized.localUnknownDestinationName(endpoint)
         }
     }
 
@@ -117,11 +98,11 @@ class CommunicationManager {
 
     func receive(
         messages: [MIDIUniversalMessage],
-        from id: UUID
+        from name: String
     ) {
-        DispatchQueue.main.async {
+//        DispatchQueue.main.async {
             self.lastSource =
-            if let source = self.remotes.first(where: { $0.id == id }) {
+            if let source = self.remotes.first(where: { $0.name == name }) {
                 source.description
             } else {
                 Localized.remoteUnknownDevice
@@ -133,7 +114,7 @@ class CommunicationManager {
                 MidiMessage.decode(message) ?? Localized.midiMessageUnknown
                 self.lastMessages.append(decodedMessage)
             }
-        }
+//        }
     }
 
 }
@@ -142,15 +123,19 @@ extension CommunicationManager {
     static let remoteSamples = [
         RemoteDetails(
             name: "Remote 1",
-            interface: .midi(),
+            interface: .wired,
         ),
         RemoteDetails(
             name: "Remote 2",
-            interface: .midi(source: 317, destination: 121),
+            interface: .wired,
+            source: 317,
+            destination: 121,
         ),
         RemoteDetails(
             name: "Remote 3",
-            interface: .midi(source: 794, destination: 331),
+            interface: .wired,
+            source: 794,
+            destination: 331,
             manufacturer: "Tester",
             model: "Device"
         ),

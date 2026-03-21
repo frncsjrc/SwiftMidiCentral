@@ -17,6 +17,4 @@ protocol Peripheral {
 
     func startAdvertizing()
     func stopAdvertising()
-    
-    func send(_: Data, to: UUID)
 }

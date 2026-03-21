@@ -12,31 +12,11 @@ import SwiftUI
 struct OutgoingView: View {
     @Binding var manager: CommunicationManager
 
-    @State var selectedDestination: UUID? = nil
-
-    var destinationIndices: Set<Int> {
-        var indices: Set<Int> = []
-        for (index, remote) in manager.remotes.enumerated() {
-            let connected =
-                switch remote.interface {
-                case .midi(_, let destination):
-                    destination != nil
-                case .bluetooth:
-                    remote.state == .connected
-                }
-            if connected {
-                if manager.selectedDestination == nil {
-                    manager.selectedDestination = remote.id
-                }
-                indices.insert(index)
-            }
-        }
-        return indices
-    }
+    @State var selectedDestination: MIDIEndpointRef? = nil
 
     var body: some View {
         VStack(alignment: .leading) {
-            if destinationIndices.isEmpty {
+            if manager.remotes.isEmpty {
                 Text(Localized.outgoingViewNoDestinations)
             } else {
                 HStack {
@@ -48,7 +28,7 @@ struct OutgoingView: View {
                     ) {
                         ForEach(manager.remotes) { remote in
                             let disconnected = remote.state != .connected
-                            Text(remote.name).tag(remote.id)
+                            Text(remote.name).tag(remote.destination)
                                 .selectionDisabled(disconnected)
                         }
                     }
@@ -95,14 +75,14 @@ struct OutgoingView: View {
             .buttonStyle(.bordered)
             .disabled(selectedDestination == nil)
         }
-        .onChange(of: destinationIndices) {
-            if selectedDestination == nil {
-                if manager.selectedDestination != nil {
-                    selectedDestination = manager.selectedDestination
-                } else if !destinationIndices.isEmpty {
-                    selectedDestination =
-                        manager.remotes[destinationIndices.first!].id
+        .onAppear {
+            if manager.selectedDestination == nil {
+                if let remote = manager.remotes.first(where: { $0.destination != nil}) {
+                    manager.selectedDestination = remote.destination
+                    selectedDestination = remote.destination
                 }
+            } else {
+                selectedDestination = manager.selectedDestination
             }
         }
     }

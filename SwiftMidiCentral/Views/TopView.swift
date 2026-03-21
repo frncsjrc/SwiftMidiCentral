@@ -18,7 +18,7 @@ struct TopView: View {
                     .font(.title)
                     .fontWeight(.bold)
             ) {
-                SetupView(manager: manager)
+                RemotesView(manager: manager)
             }
             .padding(.horizontal, 10)
 

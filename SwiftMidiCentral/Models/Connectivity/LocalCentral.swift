@@ -24,60 +24,16 @@ class LocalCentral: Central {
         self.isScanning = false
     }
 
-    func connect(to peripheralId: UUID) throws {
-        if let remoteIndex = communicationManager?.remotes.firstIndex(where: {
-            $0.id == peripheralId
-        }) {
-            communicationManager?.remotes[remoteIndex].state = .connected
-        } else {
-            Logger.connectivity.error(
-                "\(Localized.localCentralCannotConnectToPeripheral(with: peripheralId))"
-            )
-        }
-    }
-
-    func disconnect(from peripheralId: UUID) throws {
-        if let remoteIndex = communicationManager?.remotes.firstIndex(where: {
-            $0.id == peripheralId
-        }) {
-            communicationManager?.remotes[remoteIndex].state = .disconnected
-        } else {
-            Logger.connectivity.error(
-                "\(Localized.localCentralCannotDisconnectFromPeripheral(with: peripheralId))"
-            )
-        }
-    }
-    
-    func send(_ data: [Data], to remote: RemoteDetails) {
-        Logger.connectivity.info("Sending data \(data) to device \(remote.name)")
-    }
-
     private func addRemotes() {
         guard let communicationManager else {
             return
         }
 
-        for (key, value) in LocalCentral.remoteSamples {
-            if let identifier = UUID(uuidString: key) {
-                if !communicationManager.remotes.contains(where: {
-                    $0.id == identifier
-                }) {
-                    communicationManager.remotes.append(
-                        RemoteDetails(
-                            id: identifier,
-                            name: value.name,
-                            interface: .bluetooth()
-                        )
-                    )
-                }
-                if let remote = communicationManager.remotes.first(
-                    where: { $0.id == identifier })
-                {
-                    remote.name = value.name
-                    remote.state = value.state
-                    remote.manufacturer = value.manufacturer
-                    remote.model = value.model
-                }
+        for sample in LocalCentral.remoteSamples {
+            if !communicationManager.remotes.contains(where: {
+                $0.name == sample.name
+            }) {
+                communicationManager.remotes.append(sample)
             }
         }
     }
@@ -85,15 +41,24 @@ class LocalCentral: Central {
 
 extension LocalCentral {
     static let remoteSamples = [
-        "3461256A-35A3-F393-E0A9-BA9456DCCA9E": RemoteDetails(
+        RemoteDetails(
             name: "Peripheral 1",
+            interface: .bluetooth,
+            source: 1267,
+            destination: nil
         ),
-        "D6A8256A-35A3-F393-E0A9-E50E24DCCA9E": RemoteDetails(
+        RemoteDetails(
             name: "Peripheral 2",
+            interface: .bluetooth,
+            source: nil,
+            destination: 56224,
             state: .connected
         ),
-        "47C8256A-35A3-F393-E0A9-BC8E24DCCA9E": RemoteDetails(
+        RemoteDetails(
             name: "Peripheral 3",
+            interface: .bluetooth,
+            source: 98352,
+            destination: 345,
             state: .connected,
             manufacturer: "Tester",
             model: "Device"
