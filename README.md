@@ -1,5 +1,6 @@
 # Welcome to SwiftMidiCentral
 I'm a newcomer to Swift and SwiftUI. After reading various project and trying to write a first App to connect to either MIDI USB, Bluetooth peripheral and centrals, it occured that supporting several MIDI transport protocols under one hood was far lest trivial than initialy anticipated.
+
 This project has been triggered to investigate:
 - Automatic connection to Bluetooth peripherals without having to use the midimittr App. This is achieved through a direct CoreBluetooth central.
 - Direct CoreBluetooth replacement for the CABTMIDILocalPeripheralViewController which exhibits a weird hectic behavior -- namely the arrangement of the fields change randomly.
@@ -11,5 +12,9 @@ In this second implementation, usage of CoreBluetooth has been limited to advert
 The CABTMIDICentralViewController is used to connect CoreMIDI to subscribed remote peripherals.
 # Request for comments/suggestions
 This project is most likely using unacademic use of Swift and SwiftUI. It also lacks much testing. It would be much appreciated if experienced Swift/SwiftUI programmers would share their insight as too how this code should evolve to better form.
+
 Many thanks in advance,
+
 François
+
+frncsjrc@free.fr
