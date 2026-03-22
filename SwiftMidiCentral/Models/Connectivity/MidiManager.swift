@@ -31,62 +31,62 @@ class MidiManager: CommunicationManager {
         self.setup()
     }
 
-    override func reset() {
-        print("resetting")
-        MIDIRestart()
-
-        let deviceCount = MIDIGetNumberOfDevices()
-        let extDeviceCount = MIDIGetNumberOfExternalDevices()
-
-        print("Number of MIDI devices: \(deviceCount)")
-        print("Number of external MIDI devices: \(extDeviceCount)")
-
-        for i in 0..<deviceCount {
-            let device = MIDIGetDevice(i)
-
-            var name: Unmanaged<CFString>?
-            MIDIObjectGetStringProperty(device, kMIDIPropertyName, &name)
-            let deviceName: String? = name?.takeRetainedValue() as String?
-
-            print(
-                "\nFound MIDI device #\(i) named \"\(deviceName ?? "")\""
-            )
-
-            var driverOwner: Unmanaged<CFString>?
-            MIDIObjectGetStringProperty(
-                device,
-                kMIDIPropertyDriverOwner,
-                &driverOwner
-            )
-            let deviceDriverOwner: String? =
-                driverOwner?.takeRetainedValue() as String?
-
-            var offline: Unmanaged<CFString>?
-            MIDIObjectGetStringProperty(device, kMIDIPropertyOffline, &offline)
-            let deviceOffline: String? = offline?.takeRetainedValue() as String?
-
-            var protocolId: Unmanaged<CFString>?
-            MIDIObjectGetStringProperty(
-                device,
-                kMIDIPropertyProtocolID,
-                &protocolId
-            )
-            let deviceProtocol: String? =
-                protocolId?.takeRetainedValue() as String?
-
-            print(
-                "\tDriver Owner: \(deviceDriverOwner ?? "\"\""), Offline: \(deviceOffline ?? "\"\""), Protocol: \(deviceProtocol ?? "\"\"")"
-            )
-
-            if (deviceDriverOwner ?? "").range(
-                of: "bluetooth",
-                options: .caseInsensitive
-            ) != nil {
-                print("\tRemoving Bluetooth MIDI device")
-                MIDISetupRemoveDevice(device)
-            }
-        }
-    }
+//    override func reset() {
+//        print("resetting")
+//        MIDIRestart()
+//
+//        let deviceCount = MIDIGetNumberOfDevices()
+//        let extDeviceCount = MIDIGetNumberOfExternalDevices()
+//
+//        print("Number of MIDI devices: \(deviceCount)")
+//        print("Number of external MIDI devices: \(extDeviceCount)")
+//
+//        for i in 0..<deviceCount {
+//            let device = MIDIGetDevice(i)
+//
+//            var name: Unmanaged<CFString>?
+//            MIDIObjectGetStringProperty(device, kMIDIPropertyName, &name)
+//            let deviceName: String? = name?.takeRetainedValue() as String?
+//
+//            print(
+//                "\nFound MIDI device #\(i) named \"\(deviceName ?? "")\""
+//            )
+//
+//            var driverOwner: Unmanaged<CFString>?
+//            MIDIObjectGetStringProperty(
+//                device,
+//                kMIDIPropertyDriverOwner,
+//                &driverOwner
+//            )
+//            let deviceDriverOwner: String? =
+//                driverOwner?.takeRetainedValue() as String?
+//
+//            var offline: Unmanaged<CFString>?
+//            MIDIObjectGetStringProperty(device, kMIDIPropertyOffline, &offline)
+//            let deviceOffline: String? = offline?.takeRetainedValue() as String?
+//
+//            var protocolId: Unmanaged<CFString>?
+//            MIDIObjectGetStringProperty(
+//                device,
+//                kMIDIPropertyProtocolID,
+//                &protocolId
+//            )
+//            let deviceProtocol: String? =
+//                protocolId?.takeRetainedValue() as String?
+//
+//            print(
+//                "\tDriver Owner: \(deviceDriverOwner ?? "\"\""), Offline: \(deviceOffline ?? "\"\""), Protocol: \(deviceProtocol ?? "\"\"")"
+//            )
+//
+//            if (deviceDriverOwner ?? "").range(
+//                of: "bluetooth",
+//                options: .caseInsensitive
+//            ) != nil {
+//                print("\tRemoving Bluetooth MIDI device")
+//                MIDISetupRemoveDevice(device)
+//            }
+//        }
+//    }
 
     override func refresh() {
         print("refreshing")

@@ -27,14 +27,14 @@ struct SetupView: View {
 
     var body: some View {
         VStack {
-            Button(
-                Localized.setupViewReset,
-                systemImage: "arrow.trianglehead.2.clockwise"
-            ) {
-                manager.reset()
-            }
-            .accessibilityIdentifier(ViewTags.Buttons.reset)
-            .padding()
+//            Button(
+//                Localized.setupViewReset,
+//                systemImage: "arrow.trianglehead.2.clockwise"
+//            ) {
+//                manager.reset()
+//            }
+//            .accessibilityIdentifier(ViewTags.Buttons.reset)
+//            .padding()
 
             Button(
                 Localized.setupViewRefresh,
@@ -44,7 +44,7 @@ struct SetupView: View {
             }
             .accessibilityIdentifier(ViewTags.Buttons.refresh)
             .cornerRadius(50)
-            .padding(.bottom)
+            .padding(.vertical)
 
             Spacer()
 
