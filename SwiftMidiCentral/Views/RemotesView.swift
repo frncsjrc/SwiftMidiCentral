@@ -10,11 +10,11 @@ import SwiftUI
 struct RemotesView: View {
     @State var manager: CommunicationManager
 
-    @State private var presenSetup = false
+    @State private var presentSetup = false
 
     var body: some View {
         Button(action: {
-            presenSetup = true
+            presentSetup = true
         }) {
             Label(
                 Localized.remotesCommunicaationSetup,
@@ -22,7 +22,7 @@ struct RemotesView: View {
             )
         }
         .padding()
-        .sheet(isPresented: $presenSetup) {
+        .sheet(isPresented: $presentSetup) {
             NavigationStack {
                 SetupView(manager: $manager)
             }
